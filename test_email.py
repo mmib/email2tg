@@ -60,6 +60,23 @@ class ForwardTests(unittest.TestCase):
         self.assertEqual("-123", config["telegram_chat_id"])
         self.assertEqual("DEBUG", config["log_level"])
 
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("forward.load_dotenv", return_value=False)
+    def test_load_config_works_without_python_dotenv(self, _load_dotenv_mock):
+        env_path = Path(__file__).parent / "config.env"
+        env_path.write_text(
+            "TELEGRAM_BOT_TOKEN=fallback-token\n"
+            "TELEGRAM_CHAT_ID=-999\n",
+            encoding="utf-8",
+        )
+        try:
+            config = forward.load_config()
+        finally:
+            env_path.unlink()
+
+        self.assertEqual("fallback-token", config["telegram_bot_token"])
+        self.assertEqual("-999", config["telegram_chat_id"])
+
     @patch("forward.log_event")
     def test_no_attachments_logs_warning_and_skips_telegram(self, log_event):
         raw = (

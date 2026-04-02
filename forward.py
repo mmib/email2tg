@@ -44,11 +44,31 @@ def default_log_dir() -> str:
     return str(SCRIPT_DIR / "logs")
 
 
+def load_env_file(path: str | os.PathLike[str]) -> None:
+    try:
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("'\"")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
 def load_config(env_path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
     if env_path:
         load_dotenv(env_path)
+        load_env_file(env_path)
     else:
         load_dotenv(SCRIPT_DIR / "config.env")
+        load_env_file(SCRIPT_DIR / "config.env")
         load_dotenv()
 
     return {
