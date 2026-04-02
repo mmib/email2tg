@@ -60,6 +60,9 @@ class ForwardTests(unittest.TestCase):
         self.assertEqual("test-token", config["telegram_bot_token"])
         self.assertEqual("-123", config["telegram_chat_id"])
         self.assertEqual("DEBUG", config["log_level"])
+        self.assertTrue(config["config_exists"])
+        self.assertTrue(config["config_readable"])
+        self.assertEqual([], config["missing_required_config"])
 
     @patch.dict(os.environ, {}, clear=True)
     @patch("forward.load_dotenv", return_value=False)
@@ -77,6 +80,47 @@ class ForwardTests(unittest.TestCase):
 
         self.assertEqual("fallback-token", config["telegram_bot_token"])
         self.assertEqual("-999", config["telegram_chat_id"])
+        self.assertEqual([], config["missing_required_config"])
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_load_config_reports_missing_file_and_keys(self):
+        missing_path = Path(tempfile.gettempdir()) / "email2tg-missing-config.env"
+        missing_path.unlink(missing_ok=True)
+
+        config = forward.load_config(missing_path)
+
+        self.assertFalse(config["config_exists"])
+        self.assertFalse(config["config_readable"])
+        self.assertEqual(
+            ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"],
+            config["missing_required_config"],
+        )
+
+    @patch("forward.log_event")
+    def test_process_email_logs_config_diagnostics(self, log_event):
+        raw = (
+            b"From: camera1@local\n"
+            b"Subject: No image\n"
+            b"Date: Mon, 15 Jan 2024 14:30:00 +0000\n"
+            b"Content-Type: text/plain; charset=utf-8\n\n"
+            b"Plain body\n"
+        )
+        config = sample_config(
+            telegram_bot_token="",
+            telegram_chat_id="",
+            config_source="/tmp/missing-config.env",
+            config_exists=False,
+            config_readable=False,
+            config_loaded_keys=[],
+            missing_required_config=["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"],
+        )
+
+        result = forward.process_email(raw, config=config, session=Mock())
+
+        self.assertEqual(0, result)
+        messages = [call.args[1] for call in log_event.call_args_list]
+        self.assertIn("Config file missing", messages)
+        self.assertIn("Required config missing", messages)
 
     @patch("forward.log_event")
     def test_no_attachments_logs_warning_and_skips_telegram(self, log_event):

@@ -44,12 +44,16 @@ def default_log_dir() -> str:
     return str(SCRIPT_DIR / "logs")
 
 
-def load_env_file(path: str | os.PathLike[str]) -> None:
+def load_env_file(path: str | os.PathLike[str]) -> dict[str, Any]:
+    env_path = Path(path)
     try:
-        lines = Path(path).read_text(encoding="utf-8").splitlines()
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return {"exists": False, "readable": False, "loaded_keys": []}
     except OSError:
-        return
+        return {"exists": True, "readable": False, "loaded_keys": []}
 
+    loaded_keys: list[str] = []
     for raw_line in lines:
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
@@ -60,17 +64,25 @@ def load_env_file(path: str | os.PathLike[str]) -> None:
         value = value.strip().strip("'\"")
         if key and key not in os.environ:
             os.environ[key] = value
+            loaded_keys.append(key)
+    return {"exists": True, "readable": True, "loaded_keys": loaded_keys}
 
 
 def load_config(env_path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
+    env_file = Path(env_path) if env_path else SCRIPT_DIR / "config.env"
     if env_path:
         load_dotenv(env_path)
-        load_env_file(env_path)
+        env_info = load_env_file(env_path)
     else:
-        load_dotenv(SCRIPT_DIR / "config.env")
-        load_env_file(SCRIPT_DIR / "config.env")
+        load_dotenv(env_file)
+        env_info = load_env_file(env_file)
         load_dotenv()
 
+    missing_keys = [
+        key
+        for key in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")
+        if not os.getenv(key, "").strip()
+    ]
     return {
         "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
         "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID", "").strip(),
@@ -82,6 +94,11 @@ def load_config(env_path: str | os.PathLike[str] | None = None) -> dict[str, Any
             if item.strip()
         },
         "max_attachment_size": DEFAULT_MAX_ATTACHMENT_SIZE,
+        "config_source": str(env_file),
+        "config_exists": env_info["exists"],
+        "config_readable": env_info["readable"],
+        "config_loaded_keys": env_info["loaded_keys"],
+        "missing_required_config": missing_keys,
     }
 
 
@@ -292,6 +309,28 @@ def deliver_images(images: list[dict[str, Any]], message, config: dict[str, Any]
 def process_email(raw_email: bytes, config: dict[str, Any] | None = None, session: Any = None) -> int:
     config = config or load_config()
     setup_logging(config["log_dir"], config["log_level"])
+
+    if not config.get("config_exists", True):
+        log_event(
+            logging.ERROR,
+            "Config file missing",
+            path=config.get("config_source", ""),
+        )
+    elif not config.get("config_readable", True):
+        log_event(
+            logging.ERROR,
+            "Config file unreadable",
+            path=config.get("config_source", ""),
+        )
+
+    if config.get("missing_required_config"):
+        log_event(
+            logging.ERROR,
+            "Required config missing",
+            path=config.get("config_source", ""),
+            missing_keys=",".join(config["missing_required_config"]),
+            loaded_keys=",".join(config.get("config_loaded_keys", [])) or "-",
+        )
 
     if not raw_email:
         log_event(logging.WARNING, "Received empty stdin payload")
