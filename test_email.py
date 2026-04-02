@@ -19,6 +19,7 @@ def sample_config(**overrides):
         "telegram_chat_id": "-100123",
         "log_level": "INFO",
         "log_dir": str(Path.cwd() / "logs"),
+        "message_format": forward.DEFAULT_MESSAGE_FORMAT,
         "allowed_senders": set(),
         "max_attachment_size": forward.DEFAULT_MAX_ATTACHMENT_SIZE,
     }
@@ -63,6 +64,7 @@ class ForwardTests(unittest.TestCase):
         self.assertTrue(config["config_exists"])
         self.assertTrue(config["config_readable"])
         self.assertEqual([], config["missing_required_config"])
+        self.assertEqual(forward.DEFAULT_MESSAGE_FORMAT, config["message_format"])
 
     @patch.dict(os.environ, {}, clear=True)
     @patch("forward.load_dotenv", return_value=False)
@@ -81,6 +83,18 @@ class ForwardTests(unittest.TestCase):
         self.assertEqual("fallback-token", config["telegram_bot_token"])
         self.assertEqual("-999", config["telegram_chat_id"])
         self.assertEqual([], config["missing_required_config"])
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_load_config_reads_message_format(self):
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as temp_env:
+            temp_env.write("MESSAGE_FORMAT=%{subject}\\n%{image}\n")
+            env_path = Path(temp_env.name)
+        try:
+            config = forward.load_config(env_path)
+        finally:
+            env_path.unlink(missing_ok=True)
+
+        self.assertEqual("%{subject}\n%{image}", config["message_format"])
 
     @patch.dict(os.environ, {}, clear=True)
     def test_load_config_reports_missing_file_and_keys(self):
@@ -237,6 +251,31 @@ class ForwardTests(unittest.TestCase):
         self.assertEqual(10, len(media))
         self.assertIn("caption", media[0])
         self.assertEqual(10, len(first_call.kwargs["files"]))
+
+    def test_build_caption_uses_message_format_fields(self):
+        message = forward.parse_message(self.sample_email)
+        image = {"filename": "snapshot1.jpg", "bytes": b"x", "content_type": "image/jpeg"}
+        config = sample_config(message_format="%{from}|%{to}|%{subject}|%.5{text}|%{image}")
+
+        caption = forward.build_caption(message, image, config)
+
+        self.assertIn("camera1@local", caption)
+        self.assertIn("dahua@mib.photo", caption)
+        self.assertIn("Alarm Event: Motion Detection [Camera1] 2024-01-15 14:30:00", caption)
+        self.assertIn("Alarm", caption)
+        self.assertIn("snapshot1.jpg", caption)
+
+    def test_extract_message_bodies_prefers_plain_text(self):
+        message = EmailMessage()
+        message["From"] = "camera1@local"
+        message.set_content("Plain body")
+        message.add_alternative("<p>HTML body</p>", subtype="html")
+
+        bodies = forward.extract_message_bodies(message)
+
+        self.assertEqual("Plain body", bodies["plain"])
+        self.assertIn("<p>HTML body</p>", bodies["html"])
+        self.assertEqual("Plain body", bodies["text"])
 
     @patch("forward.log_event")
     def test_missing_requests_dependency_does_not_crash(self, log_event):

@@ -48,6 +48,26 @@ cp config.env.example config.env
 
 Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `config.env`. `ALLOWED_SENDERS` is optional: leave it empty to accept mail from any sender, or set a comma-separated allowlist such as `camera1@local,camera2@local`. The script loads `config.env` from the same directory as `forward.py`.
 
+`MESSAGE_FORMAT` controls the Telegram caption text. Default value:
+
+```text
+%{from} [%{subject}] -> %{to}
+%.2000{text}
+%{image}
+```
+
+Available params:
+
+- `from`: sender address
+- `to`: receiver address
+- `subject`: email subject
+- `text`: best text body (`plain`, otherwise HTML converted to text)
+- `plain`: plain text body
+- `html`: HTML body
+- `image`: image filename
+
+Use `%.N{name}` to truncate a field, for example `%.2000{text}`.
+
 ## Postfix Configuration
 
 Add to `/etc/postfix/main.cf`:

@@ -34,8 +34,11 @@ except ImportError:
 
 LOGGER = logging.getLogger("email2tg")
 DEFAULT_MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
+DEFAULT_MESSAGE_FORMAT = "%{from} [%{subject}] -> %{to}\n%.2000{text}\n%{image}"
 SCRIPT_DIR = Path(__file__).resolve().parent
 _FILENAME_CLEAN_RE = re.compile(r"[^A-Za-z0-9._-]+")
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_MESSAGE_VAR_RE = re.compile(r"%(\.(\d+))?\{([a-z_]+)\}")
 
 
 def default_log_dir() -> str:
@@ -88,6 +91,7 @@ def load_config(env_path: str | os.PathLike[str] | None = None) -> dict[str, Any
         "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID", "").strip(),
         "log_level": os.getenv("LOG_LEVEL", "INFO").strip().upper(),
         "log_dir": os.getenv("LOG_DIR", default_log_dir()).strip(),
+        "message_format": os.getenv("MESSAGE_FORMAT", DEFAULT_MESSAGE_FORMAT).replace("\\n", "\n"),
         "allowed_senders": {
             item.strip().lower()
             for item in os.getenv("ALLOWED_SENDERS", "").split(",")
@@ -212,17 +216,69 @@ def extract_images(message, max_attachment_size: int = DEFAULT_MAX_ATTACHMENT_SI
     return images
 
 
-def build_caption(message) -> str:
-    subject = (message.get("Subject") or "Camera alert").strip()
-    sender = extract_sender(message.get("From", "")) or "unknown"
-    date_header = (message.get("Date") or "").strip()
-    timestamp = date_header
-    if date_header:
+def html_to_text(html: str) -> str:
+    text = _HTML_TAG_RE.sub(" ", html)
+    return " ".join(text.split())
+
+
+def extract_message_bodies(message) -> dict[str, str]:
+    plain_parts: list[str] = []
+    html_parts: list[str] = []
+
+    for part in message.walk():
+        if part.is_multipart():
+            continue
+        if part.get_content_disposition() == "attachment":
+            continue
+
+        content_type = part.get_content_type()
+        payload = part.get_payload(decode=True) or b""
+        charset = part.get_content_charset() or "utf-8"
         try:
-            timestamp = parsedate_to_datetime(date_header).isoformat(sep=" ", timespec="seconds")
-        except (TypeError, ValueError, IndexError, OverflowError):
-            timestamp = date_header
-    return f"{subject}\nFrom: {sender}\nDate: {timestamp}"
+            text = payload.decode(charset, errors="replace")
+        except LookupError:
+            text = payload.decode("utf-8", errors="replace")
+
+        if content_type == "text/plain":
+            plain_parts.append(text.strip())
+        elif content_type == "text/html":
+            html_parts.append(text.strip())
+
+    plain = "\n".join(part for part in plain_parts if part)
+    html = "\n".join(part for part in html_parts if part)
+    text = plain or html_to_text(html)
+    return {
+        "plain": plain,
+        "html": html,
+        "text": text,
+    }
+
+
+def render_message_format(template: str, values: dict[str, str]) -> str:
+    def replace(match: re.Match[str]) -> str:
+        max_len = match.group(2)
+        key = match.group(3)
+        value = values.get(key, "")
+        if max_len:
+            return value[: int(max_len)]
+        return value
+
+    rendered = _MESSAGE_VAR_RE.sub(replace, template)
+    return rendered.strip()
+
+
+def build_caption(message, image: dict[str, Any], config: dict[str, Any]) -> str:
+    bodies = extract_message_bodies(message)
+    values = {
+        "from": extract_sender(message.get("From", "")) or "",
+        "to": parseaddr(message.get("To", ""))[1],
+        "subject": (message.get("Subject") or "").strip(),
+        "text": bodies["text"],
+        "plain": bodies["plain"],
+        "html": bodies["html"],
+        "image": image["filename"],
+    }
+    return render_message_format(config["message_format"], values)
 
 
 def send_request(
@@ -295,13 +351,15 @@ def send_media_group(images: list[dict[str, Any]], caption: str, config: dict[st
 
 
 def deliver_images(images: list[dict[str, Any]], message, config: dict[str, Any], session: Any = None) -> int:
-    caption = build_caption(message)
     responses = []
     if len(images) > 10:
         for start in range(0, len(images), 10):
-            responses.append(send_media_group(images[start : start + 10], caption, config, session=session))
+            batch = images[start : start + 10]
+            caption = build_caption(message, batch[0], config)
+            responses.append(send_media_group(batch, caption, config, session=session))
     else:
         for image in images:
+            caption = build_caption(message, image, config)
             responses.append(send_single_photo(image, caption, config, session=session))
     return sum(1 for response in responses if response is not None and response.status_code == 200)
 
