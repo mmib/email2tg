@@ -10,6 +10,8 @@ Lightweight Python service that receives Dahua camera emails from Postfix pipe t
 - `config.env.example`: configuration template.
 - `install.sh`: installs the service into `/opt/dahua-telegram`.
 
+The checked-in `forward.py` uses `#!/usr/bin/env python3` so it runs from the repo. During installation, `install.sh` rewrites the deployed `/opt/dahua-telegram/forward.py` shebang to the venv interpreter.
+
 ## Prerequisites
 
 - Ubuntu 22 or similar Linux host with Postfix.
@@ -43,7 +45,7 @@ chmod +x install.sh
 cp config.env.example config.env
 ```
 
-Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `config.env`. Optional `ALLOWED_SENDERS` limits accepted camera addresses.
+Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `config.env`. `ALLOWED_SENDERS` is optional: leave it empty to accept mail from any sender, or set a comma-separated allowlist such as `camera1@local,camera2@local`.
 
 ## Postfix Configuration
 
@@ -101,4 +103,5 @@ swaks --to dahua@mib.photo --from test@test.com --attach samples/test.jpg --serv
 
 - If Postfix reports pipe failures, verify `/opt/dahua-telegram/forward.py` is executable.
 - If Telegram delivery fails, confirm bot membership and `chat_id`.
-- If mail arrives but nothing sends, inspect `ALLOWED_SENDERS` and `/opt/dahua-telegram/logs/forward.log`.
+- If mail arrives but nothing sends, inspect `ALLOWED_SENDERS`. An empty value allows all senders; a non-empty value only accepts exact sender matches.
+- Check `/opt/dahua-telegram/logs/forward.log` for parsing, filtering, and Telegram API errors.

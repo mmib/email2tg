@@ -89,6 +89,19 @@ class ForwardTests(unittest.TestCase):
         session.post.assert_not_called()
         self.assertIn("Skipping sender not in allowlist", log_event.call_args.args[1])
 
+    def test_empty_allowed_senders_allows_any_sender(self):
+        session = Mock()
+        session.post.return_value = Mock(status_code=200, text="ok")
+
+        result = forward.process_email(
+            self.sample_email,
+            config=sample_config(allowed_senders=set()),
+            session=session,
+        )
+
+        self.assertEqual(0, result)
+        self.assertEqual(2, session.post.call_count)
+
     @patch("forward.log_event")
     def test_oversized_attachment_is_skipped(self, log_event):
         message = EmailMessage()

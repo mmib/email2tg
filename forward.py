@@ -1,4 +1,4 @@
-#!/opt/dahua-telegram/venv/bin/python3
+#!/usr/bin/env python3
 """Forward Dahua camera snapshots from email to Telegram."""
 
 from __future__ import annotations
@@ -311,4 +311,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

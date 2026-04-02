@@ -19,6 +19,7 @@ sudo "$APP_ROOT/venv/bin/pip" install --upgrade pip
 sudo "$APP_ROOT/venv/bin/pip" install -r "$REPO_ROOT/requirements.txt"
 
 sudo install -m 0755 "$REPO_ROOT/forward.py" "$APP_ROOT/forward.py"
+sudo sed -i "1s|^#!.*$|#!$APP_ROOT/venv/bin/python3|" "$APP_ROOT/forward.py"
 if [[ ! -f "$REPO_ROOT/config.env" ]]; then
   cp "$REPO_ROOT/config.env.example" "$REPO_ROOT/config.env"
 fi
@@ -54,4 +55,3 @@ Telegram:
   Create a bot with @BotFather, add it to the target chat, then run:
   curl https://api.telegram.org/bot<TOKEN>/getUpdates
 EOF
-
