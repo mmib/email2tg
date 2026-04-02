@@ -22,9 +22,9 @@ The checked-in `forward.py` uses `#!/usr/bin/env python3` so it runs from the re
 ## DNS Configuration
 
 ```dns
-mib.photo.       IN  MX   10  mail.mib.photo.
-mail.mib.photo.  IN  A        YOUR_VPS_IP
-mib.photo.       IN  TXT      "v=spf1 ip4:YOUR_VPS_IP -all"
+test.com.       IN  MX   10  mail.test.com.
+mail.test.com.  IN  A        YOUR_VPS_IP
+test.com.       IN  TXT      "v=spf1 ip4:YOUR_VPS_IP -all"
 ```
 
 ## Telegram Bot Setup
@@ -73,14 +73,14 @@ Use `%.N{name}` to truncate a field, for example `%.2000{text}`.
 Add to `/etc/postfix/main.cf`:
 
 ```conf
-virtual_alias_domains = mib.photo
+virtual_alias_domains = test.com
 virtual_alias_maps = hash:/etc/postfix/virtual
 ```
 
 Add to `/etc/postfix/virtual`:
 
 ```conf
-dahua@mib.photo  dahua-cam
+test@test.com  dahua-cam
 ```
 
 Add to `/etc/aliases`:
@@ -112,14 +112,14 @@ If the configured log directory is not writable, the script falls back to `/tmp/
 SMTP smoke test:
 
 ```bash
-swaks --to dahua@mib.photo --from test@test.com --attach samples/test.jpg --server localhost
+swaks --to test@test.com --from test@test.com --attach samples/test.jpg --server localhost
 ```
 
 ## Dahua Camera Settings
 
-- SMTP server: `mail.mib.photo`
+- SMTP server: `mail.test.com`
 - SMTP port: `25`
-- Recipient: `dahua@mib.photo`
+- Recipient: `test@test.com`
 - Enable snapshot attachments in alarm emails
 
 ## Troubleshooting

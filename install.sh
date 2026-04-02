@@ -33,10 +33,10 @@ Installation complete.
 Next steps:
 1. Edit config.env with TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
 2. Add to /etc/postfix/main.cf:
-   virtual_alias_domains = mib.photo
+   virtual_alias_domains = test.com
    virtual_alias_maps = hash:/etc/postfix/virtual
 3. Add to /etc/postfix/virtual:
-   dahua@mib.photo  dahua-cam
+   test@test.com  dahua-cam
 4. Add to /etc/aliases:
    dahua-cam: "|/opt/dahua-telegram/forward.py"
 5. Apply mail changes:
@@ -47,9 +47,9 @@ Next steps:
    cat samples/dahua_motion.eml | /opt/dahua-telegram/forward.py
 
 DNS records:
-  mib.photo.       IN MX  10 mail.mib.photo.
-  mail.mib.photo.  IN A      YOUR_VPS_IP
-  mib.photo.       IN TXT    "v=spf1 ip4:YOUR_VPS_IP -all"
+  test.com.       IN MX  10 mail.test.com.
+  mail.test.com.  IN A      YOUR_VPS_IP
+  test.com.       IN TXT    "v=spf1 ip4:YOUR_VPS_IP -all"
 
 Telegram:
   Create a bot with @BotFather, add it to the target chat, then run:

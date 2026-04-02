@@ -108,9 +108,9 @@ Full setup guide covering:
 2. **DNS Configuration**:
    ```
    # Replace YOUR_VPS_IP with actual IP
-   mib.photo.       IN  MX   10  mail.mib.photo.
-   mail.mib.photo.  IN  A        YOUR_VPS_IP
-   mib.photo.       IN  TXT      "v=spf1 ip4:YOUR_VPS_IP -all"
+   test.com.       IN  MX   10  mail.test.com.
+   mail.test.com.  IN  A        YOUR_VPS_IP
+   test.com.       IN  TXT      "v=spf1 ip4:YOUR_VPS_IP -all"
    ```
 3. **Telegram Bot Setup**:
    - Message @BotFather → `/newbot` → save token.
@@ -120,11 +120,11 @@ Full setup guide covering:
 5. **Postfix Configuration**:
    ```
    # /etc/postfix/main.cf — add to existing config:
-   virtual_alias_domains = mib.photo
+   virtual_alias_domains = test.com
    virtual_alias_maps = hash:/etc/postfix/virtual
 
    # /etc/postfix/virtual
-   dahua@mib.photo  dahua-cam
+   test@test.com  dahua-cam
 
    # /etc/aliases — add line:
    dahua-cam: "|/opt/dahua-telegram/forward.py"
@@ -136,13 +136,13 @@ Full setup guide covering:
    ```
 6. **Testing**:
    - Pipe test: `cat samples/dahua_motion.eml | sudo -u nobody /opt/dahua-telegram/forward.py`
-   - SMTP test: `swaks --to dahua@mib.photo --from test@test.com --attach samples/test.jpg --server localhost`
+   - SMTP test: `swaks --to test@test.com --from test@test.com --attach samples/test.jpg --server localhost`
    - Check logs: `tail -f /opt/dahua-telegram/logs/forward.log`
 7. **Dahua Camera Configuration**:
-   - SMTP server: `mail.mib.photo` (or VPS IP directly)
+   - SMTP server: `mail.test.com` (or VPS IP directly)
    - SMTP port: 25 (Dahua cameras often don't support TLS for outbound SMTP)
    - Sender: anything (or configure per-camera for identification)
-   - Recipient: `dahua@mib.photo`
+   - Recipient: `test@test.com`
    - Enable: attach snapshot to email
 8. **Troubleshooting**: Common issues (Postfix permissions, script not executable, Telegram token wrong, DNS propagation).
 
@@ -160,5 +160,5 @@ Full setup guide covering:
 - Web UI or dashboard.
 - Email storage or archival.
 - Video handling (Dahua sends snapshots, not video, via email).
-- TLS/DKIM/DMARC setup for mib.photo (existing Postfix config handles this).
+- TLS/DKIM/DMARC setup for test.com (existing Postfix config handles this).
 - Telegram bot command handling (bot only sends, doesn't receive commands).

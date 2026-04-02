@@ -260,7 +260,7 @@ class ForwardTests(unittest.TestCase):
         caption = forward.build_caption(message, image, config)
 
         self.assertIn("camera1@local", caption)
-        self.assertIn("dahua@mib.photo", caption)
+        self.assertIn("test@test.com", caption)
         self.assertIn("Alarm Event: Motion Detection [Camera1] 2024-01-15 14:30:00", caption)
         self.assertIn("Alarm", caption)
         self.assertIn("snapshot1.jpg", caption)
