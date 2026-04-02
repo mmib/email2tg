@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -44,17 +45,17 @@ class ForwardTests(unittest.TestCase):
 
     @patch.dict(os.environ, {}, clear=True)
     def test_load_config_reads_config_env_from_script_directory(self):
-        env_path = Path(__file__).parent / "config.env"
-        env_path.write_text(
-            "TELEGRAM_BOT_TOKEN=test-token\n"
-            "TELEGRAM_CHAT_ID=-123\n"
-            "LOG_LEVEL=DEBUG\n",
-            encoding="utf-8",
-        )
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as temp_env:
+            temp_env.write(
+                "TELEGRAM_BOT_TOKEN=test-token\n"
+                "TELEGRAM_CHAT_ID=-123\n"
+                "LOG_LEVEL=DEBUG\n",
+            )
+            env_path = Path(temp_env.name)
         try:
-            config = forward.load_config()
+            config = forward.load_config(env_path)
         finally:
-            env_path.unlink()
+            env_path.unlink(missing_ok=True)
 
         self.assertEqual("test-token", config["telegram_bot_token"])
         self.assertEqual("-123", config["telegram_chat_id"])
@@ -63,16 +64,16 @@ class ForwardTests(unittest.TestCase):
     @patch.dict(os.environ, {}, clear=True)
     @patch("forward.load_dotenv", return_value=False)
     def test_load_config_works_without_python_dotenv(self, _load_dotenv_mock):
-        env_path = Path(__file__).parent / "config.env"
-        env_path.write_text(
-            "TELEGRAM_BOT_TOKEN=fallback-token\n"
-            "TELEGRAM_CHAT_ID=-999\n",
-            encoding="utf-8",
-        )
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as temp_env:
+            temp_env.write(
+                "TELEGRAM_BOT_TOKEN=fallback-token\n"
+                "TELEGRAM_CHAT_ID=-999\n",
+            )
+            env_path = Path(temp_env.name)
         try:
-            config = forward.load_config()
+            config = forward.load_config(env_path)
         finally:
-            env_path.unlink()
+            env_path.unlink(missing_ok=True)
 
         self.assertEqual("fallback-token", config["telegram_bot_token"])
         self.assertEqual("-999", config["telegram_chat_id"])
