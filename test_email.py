@@ -156,6 +156,16 @@ class ForwardTests(unittest.TestCase):
         self.assertIn("caption", media[0])
         self.assertEqual(10, len(first_call.kwargs["files"]))
 
+    @patch("forward.log_event")
+    def test_missing_requests_dependency_does_not_crash(self, log_event):
+        with patch.object(forward, "REQUESTS_MODULE", None):
+            result = forward.process_email(self.sample_email, config=sample_config(), session=None)
+
+        self.assertEqual(0, result)
+        self.assertTrue(
+            any("module=requests" in call.args[1] for call in log_event.call_args_list),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

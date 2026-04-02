@@ -16,8 +16,21 @@ import sys
 import time
 from typing import Any
 
-import requests
-from dotenv import load_dotenv
+try:
+    import requests as REQUESTS_MODULE
+    from requests import RequestException
+except ImportError:
+    REQUESTS_MODULE = None
+
+    class RequestException(Exception):
+        """Fallback exception when requests is unavailable."""
+
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args: Any, **kwargs: Any) -> bool:
+        return False
 
 LOGGER = logging.getLogger("email2tg")
 DEFAULT_MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
@@ -166,12 +179,17 @@ def send_request(
     data: dict[str, Any],
     files: Any = None,
     timeout: int = 30,
-    session: Any = requests,
-) -> requests.Response | None:
+    session: Any = None,
+):
+    session = session or REQUESTS_MODULE
+    if session is None:
+        log_event(logging.ERROR, "Python dependency missing module=requests")
+        return None
+
     for attempt in range(2):
         try:
             response = session.post(url, data=data, files=files, timeout=timeout)
-        except requests.RequestException as exc:
+        except RequestException as exc:
             response = None
             if attempt == 0:
                 log_event(logging.ERROR, f"Telegram request failed error={exc}")
@@ -195,7 +213,7 @@ def send_request(
     return None
 
 
-def send_single_photo(image: dict[str, Any], caption: str, config: dict[str, Any], session: Any = requests):
+def send_single_photo(image: dict[str, Any], caption: str, config: dict[str, Any], session: Any = None):
     url = f"https://api.telegram.org/bot{config['telegram_bot_token']}/sendPhoto"
     data = {"chat_id": config["telegram_chat_id"], "caption": caption}
     files = {
@@ -208,7 +226,7 @@ def send_single_photo(image: dict[str, Any], caption: str, config: dict[str, Any
     return send_request(url, data=data, files=files, session=session)
 
 
-def send_media_group(images: list[dict[str, Any]], caption: str, config: dict[str, Any], session: Any = requests):
+def send_media_group(images: list[dict[str, Any]], caption: str, config: dict[str, Any], session: Any = None):
     url = f"https://api.telegram.org/bot{config['telegram_bot_token']}/sendMediaGroup"
     media = []
     files: dict[str, tuple[str, bytes, str]] = {}
@@ -224,7 +242,7 @@ def send_media_group(images: list[dict[str, Any]], caption: str, config: dict[st
     return send_request(url, data=data, files=files, session=session)
 
 
-def deliver_images(images: list[dict[str, Any]], message, config: dict[str, Any], session: Any = requests) -> int:
+def deliver_images(images: list[dict[str, Any]], message, config: dict[str, Any], session: Any = None) -> int:
     caption = build_caption(message)
     responses = []
     if len(images) > 10:
@@ -236,7 +254,7 @@ def deliver_images(images: list[dict[str, Any]], message, config: dict[str, Any]
     return sum(1 for response in responses if response is not None and response.status_code == 200)
 
 
-def process_email(raw_email: bytes, config: dict[str, Any] | None = None, session: Any = requests) -> int:
+def process_email(raw_email: bytes, config: dict[str, Any] | None = None, session: Any = None) -> int:
     config = config or load_config()
     setup_logging(config["log_dir"], config["log_level"])
 
