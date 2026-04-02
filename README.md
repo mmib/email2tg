@@ -1,10 +1,10 @@
 # email2tg
 
-Lightweight Python service that receives Dahua camera emails from Postfix pipe transport and forwards image attachments to a Telegram chat.
+Lightweight Python service that receives emails from Postfix pipe transport and forwards image attachments to a Telegram chat.
 
 ## Repository Layout
 
-- `forward.py`: parses MIME email from `stdin`, filters attachments, and sends snapshots to Telegram.
+- `forward.py`: parses MIME email from `stdin`, filters image attachments, and sends them to Telegram.
 - `test_email.py`: `unittest` coverage for parsing, filtering, retries, and media-group batching.
 - `samples/dahua_motion.eml`: realistic fixture for local testing.
 - `config.env.example`: configuration template.
@@ -18,6 +18,10 @@ The checked-in `forward.py` uses `#!/usr/bin/env python3` so it runs from the re
 - Python 3.10+.
 - A Telegram bot token and destination `chat_id`.
 - DNS control for the receiving mail domain.
+
+## Use Cases
+
+This project works with any email source that sends image attachments. A common example is forwarding alert emails from security cameras such as Dahua, Hikvision, and similar systems into a Telegram chat for quick monitoring.
 
 ## DNS Configuration
 
@@ -115,12 +119,13 @@ SMTP smoke test:
 swaks --to test@test.com --from test@test.com --attach samples/test.jpg --server localhost
 ```
 
-## Dahua Camera Settings
+## Security Camera Example
 
 - SMTP server: `mail.test.com`
 - SMTP port: `25`
 - Recipient: `test@test.com`
 - Enable snapshot attachments in alarm emails
+- This pattern is useful for Dahua, Hikvision, and similar cameras that can send email alerts with JPEG snapshots
 
 ## Troubleshooting
 
