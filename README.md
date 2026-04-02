@@ -41,6 +41,7 @@ curl https://api.telegram.org/bot<TOKEN>/getUpdates
 
 ```bash
 chmod +x install.sh
+python3 -m pip install -r requirements.txt
 ./install.sh
 cp config.env.example config.env
 ```
