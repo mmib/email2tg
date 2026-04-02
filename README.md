@@ -1,0 +1,104 @@
+# email2tg
+
+Lightweight Python service that receives Dahua camera emails from Postfix pipe transport and forwards image attachments to a Telegram chat.
+
+## Repository Layout
+
+- `forward.py`: parses MIME email from `stdin`, filters attachments, and sends snapshots to Telegram.
+- `test_email.py`: `unittest` coverage for parsing, filtering, retries, and media-group batching.
+- `samples/dahua_motion.eml`: realistic fixture for local testing.
+- `config.env.example`: configuration template.
+- `install.sh`: installs the service into `/opt/dahua-telegram`.
+
+## Prerequisites
+
+- Ubuntu 22 or similar Linux host with Postfix.
+- Python 3.10+.
+- A Telegram bot token and destination `chat_id`.
+- DNS control for the receiving mail domain.
+
+## DNS Configuration
+
+```dns
+mib.photo.       IN  MX   10  mail.mib.photo.
+mail.mib.photo.  IN  A        YOUR_VPS_IP
+mib.photo.       IN  TXT      "v=spf1 ip4:YOUR_VPS_IP -all"
+```
+
+## Telegram Bot Setup
+
+1. Message `@BotFather` and create a bot with `/newbot`.
+2. Add the bot to the target group or channel and send one message there.
+3. Fetch the chat id:
+
+```bash
+curl https://api.telegram.org/bot<TOKEN>/getUpdates
+```
+
+## Installation
+
+```bash
+chmod +x install.sh
+./install.sh
+cp config.env.example config.env
+```
+
+Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `config.env`. Optional `ALLOWED_SENDERS` limits accepted camera addresses.
+
+## Postfix Configuration
+
+Add to `/etc/postfix/main.cf`:
+
+```conf
+virtual_alias_domains = mib.photo
+virtual_alias_maps = hash:/etc/postfix/virtual
+```
+
+Add to `/etc/postfix/virtual`:
+
+```conf
+dahua@mib.photo  dahua-cam
+```
+
+Add to `/etc/aliases`:
+
+```conf
+dahua-cam: "|/opt/dahua-telegram/forward.py"
+```
+
+Apply changes:
+
+```bash
+postmap /etc/postfix/virtual
+newaliases
+systemctl reload postfix
+```
+
+## Testing
+
+Pipe test email into the script:
+
+```bash
+cat samples/dahua_motion.eml | python3 forward.py
+python3 -m unittest -v test_email.py
+tail -f /opt/dahua-telegram/logs/forward.log
+```
+
+SMTP smoke test:
+
+```bash
+swaks --to dahua@mib.photo --from test@test.com --attach samples/test.jpg --server localhost
+```
+
+## Dahua Camera Settings
+
+- SMTP server: `mail.mib.photo`
+- SMTP port: `25`
+- Recipient: `dahua@mib.photo`
+- Enable snapshot attachments in alarm emails
+
+## Troubleshooting
+
+- If Postfix reports pipe failures, verify `/opt/dahua-telegram/forward.py` is executable.
+- If Telegram delivery fails, confirm bot membership and `chat_id`.
+- If mail arrives but nothing sends, inspect `ALLOWED_SENDERS` and `/opt/dahua-telegram/logs/forward.log`.
