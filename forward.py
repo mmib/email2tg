@@ -34,20 +34,28 @@ except ImportError:
 
 LOGGER = logging.getLogger("email2tg")
 DEFAULT_MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
+SCRIPT_DIR = Path(__file__).resolve().parent
 _FILENAME_CLEAN_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def default_log_dir() -> str:
+    if SCRIPT_DIR == Path("/opt/dahua-telegram"):
+        return str(SCRIPT_DIR / "logs")
+    return str(SCRIPT_DIR / "logs")
 
 
 def load_config(env_path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
     if env_path:
         load_dotenv(env_path)
     else:
+        load_dotenv(SCRIPT_DIR / "config.env")
         load_dotenv()
 
     return {
         "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
         "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID", "").strip(),
         "log_level": os.getenv("LOG_LEVEL", "INFO").strip().upper(),
-        "log_dir": os.getenv("LOG_DIR", "/opt/dahua-telegram/logs").strip(),
+        "log_dir": os.getenv("LOG_DIR", default_log_dir()).strip(),
         "allowed_senders": {
             item.strip().lower()
             for item in os.getenv("ALLOWED_SENDERS", "").split(",")
@@ -69,14 +77,21 @@ def setup_logging(log_dir: str, log_level: str) -> logging.Logger:
         "%(asctime)s %(levelname)s from=%(from_addr)s subject=%(subject)s %(message)s"
     )
 
-    try:
-        Path(log_dir).mkdir(parents=True, exist_ok=True)
-        handler: logging.Handler = RotatingFileHandler(
-            Path(log_dir) / "forward.log",
-            maxBytes=5 * 1024 * 1024,
-            backupCount=3,
-        )
-    except OSError:
+    handler: logging.Handler | None = None
+    candidate_dirs = [Path(log_dir), Path("/tmp/email2tg/logs")]
+    for candidate_dir in candidate_dirs:
+        try:
+            candidate_dir.mkdir(parents=True, exist_ok=True)
+            handler = RotatingFileHandler(
+                candidate_dir / "forward.log",
+                maxBytes=5 * 1024 * 1024,
+                backupCount=3,
+            )
+            break
+        except OSError:
+            continue
+
+    if handler is None:
         handler = logging.StreamHandler(sys.stderr)
 
     handler.setFormatter(formatter)

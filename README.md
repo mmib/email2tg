@@ -46,7 +46,7 @@ python3 -m pip install -r requirements.txt
 cp config.env.example config.env
 ```
 
-Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `config.env`. `ALLOWED_SENDERS` is optional: leave it empty to accept mail from any sender, or set a comma-separated allowlist such as `camera1@local,camera2@local`.
+Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `config.env`. `ALLOWED_SENDERS` is optional: leave it empty to accept mail from any sender, or set a comma-separated allowlist such as `camera1@local,camera2@local`. The script loads `config.env` from the same directory as `forward.py`.
 
 ## Postfix Configuration
 
@@ -87,6 +87,8 @@ python3 -m unittest -v test_email.py
 tail -f /opt/dahua-telegram/logs/forward.log
 ```
 
+If the configured log directory is not writable, the script falls back to `/tmp/email2tg/logs/forward.log` before using stderr.
+
 SMTP smoke test:
 
 ```bash
@@ -105,4 +107,4 @@ swaks --to dahua@mib.photo --from test@test.com --attach samples/test.jpg --serv
 - If Postfix reports pipe failures, verify `/opt/dahua-telegram/forward.py` is executable.
 - If Telegram delivery fails, confirm bot membership and `chat_id`.
 - If mail arrives but nothing sends, inspect `ALLOWED_SENDERS`. An empty value allows all senders; a non-empty value only accepts exact sender matches.
-- Check `/opt/dahua-telegram/logs/forward.log` for parsing, filtering, and Telegram API errors.
+- Check `/opt/dahua-telegram/logs/forward.log` or `/tmp/email2tg/logs/forward.log` for parsing, filtering, and Telegram API errors.

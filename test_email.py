@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
@@ -39,6 +41,24 @@ class ForwardTests(unittest.TestCase):
         self.assertEqual(2, len(images))
         self.assertEqual("image/jpeg", images[0]["content_type"])
         self.assertEqual("image/jpeg", images[1]["content_type"])
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_load_config_reads_config_env_from_script_directory(self):
+        env_path = Path(__file__).parent / "config.env"
+        env_path.write_text(
+            "TELEGRAM_BOT_TOKEN=test-token\n"
+            "TELEGRAM_CHAT_ID=-123\n"
+            "LOG_LEVEL=DEBUG\n",
+            encoding="utf-8",
+        )
+        try:
+            config = forward.load_config()
+        finally:
+            env_path.unlink()
+
+        self.assertEqual("test-token", config["telegram_bot_token"])
+        self.assertEqual("-123", config["telegram_chat_id"])
+        self.assertEqual("DEBUG", config["log_level"])
 
     @patch("forward.log_event")
     def test_no_attachments_logs_warning_and_skips_telegram(self, log_event):
@@ -165,6 +185,19 @@ class ForwardTests(unittest.TestCase):
         self.assertTrue(
             any("module=requests" in call.args[1] for call in log_event.call_args_list),
         )
+
+    @patch("forward.Path.mkdir")
+    @patch("forward.RotatingFileHandler")
+    def test_setup_logging_falls_back_to_tmp_log_dir(self, handler_cls, mkdir_mock):
+        handler = logging.StreamHandler()
+        handler_cls.side_effect = [OSError("no access"), handler]
+
+        logger = forward.setup_logging("/no-permission/logs", "INFO")
+
+        self.assertIs(logger.handlers[0], handler)
+        attempted_paths = [call.args[0] for call in handler_cls.call_args_list]
+        self.assertEqual(Path("/no-permission/logs/forward.log"), attempted_paths[0])
+        self.assertEqual(Path("/tmp/email2tg/logs/forward.log"), attempted_paths[1])
 
 
 if __name__ == "__main__":
